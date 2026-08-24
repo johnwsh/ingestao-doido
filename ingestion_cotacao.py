@@ -1,8 +1,12 @@
 import requests
 import json
 
+dt_start = "'08-01-2026'"
+dt_end = "'08-10-2026'"
+
+
 # URL direto com as datas
-url = "https://olinda.bcb.gov.br/olinda/servico/PTAX/versao/v1/odata/CotacaoDolarPeriodo(dataInicial='08-01-2026',dataFinalCotacao='08-10-2026')?$format=json"
+url = f"https://olinda.bcb.gov.br/olinda/servico/PTAX/versao/v1/odata/CotacaoDolarPeriodo(dataInicial={dt_start},dataFinalCotacao={dt_end})?$format=json"
 
 # Faz a requisição e pega o JSON como dicionário
 resposta = requests.get(url, verify=False)
