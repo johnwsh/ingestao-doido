@@ -5,7 +5,7 @@ import requests
 # 1. Configurando os parâmetros
 parametros = {
     "language": "pt-br",
-    "id": "PRE",
+    "id": "SLP",
     "pageNumber": 1,
     "pageSize": 20,
     "date": "2026-08-21" 
