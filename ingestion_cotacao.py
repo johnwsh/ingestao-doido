@@ -9,7 +9,7 @@ dt_end = "'08-10-2026'"
 url = f"https://olinda.bcb.gov.br/olinda/servico/PTAX/versao/v1/odata/CotacaoDolarPeriodo(dataInicial={dt_start},dataFinalCotacao={dt_end})?$format=json"
 
 # Faz a requisição e pega o JSON como dicionário
-resposta = requests.get(url, verify=False)
+resposta = requests.get(url, verify="certificado.pem")
 dados = resposta.json()
 
 # Transforma de volta em string, mas agora com indentação (bonito)

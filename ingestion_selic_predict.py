@@ -23,7 +23,7 @@ headers = {
 }
 
 # 4. Consumindo a API
-response = requests.get(url, headers=headers, verify=False)
+response = requests.get(url, headers=headers, verify="certificado.pem")
 
 if response.status_code == 200:
     # Transforma a resposta em um dicionário Python

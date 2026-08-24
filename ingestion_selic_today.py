@@ -19,7 +19,7 @@ headers = {
     "Accept": "application/json"
 }
 
-resposta = requests.post(url, params=parametros, json=payload, headers=headers, verify=False)
+resposta = requests.post(url, params=parametros, json=payload, headers=headers, verify="certificado.pem")
 resposta_moggadora = json.dumps(resposta.json(), indent=4, ensure_ascii=False)
 
 print(resposta_moggadora)
