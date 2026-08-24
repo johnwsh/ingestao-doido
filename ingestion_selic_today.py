@@ -1,14 +1,25 @@
 import requests
 import json
 
-dt_end = "31/01/2023"
-dt_start ="01/01/2023"
-codigo_serie = "1178"
+url = "https://www3.bcb.gov.br/novoselic/rest/taxaSelicApurada/pub/search"
 
-# Na parte da url em baixo se usar 432 usa Selic Meta, se usar 1178 usa a Selic Efetiva (aparentemente usama a Efetiva)
-url = f"https://api.bcb.gov.br/dados/serie/bcdata.sgs.{codigo_serie}/dados?formato=json&dataInicial={dt_start}&dataFinal={dt_end}"
+# Como essa API tem paginação, colocamos um pageSize alto para trazer o ano todo de uma vez
+parametros = {
+    "page": 1,
+    "pageSize": 500 
+}
 
-resposta = requests.get(url, verify=False)
+payload = {
+    "dataInicial": "01/01/2023",
+    "dataFinal": "31/12/2023"
+}
+
+headers = {
+    "Content-Type": "application/json",
+    "Accept": "application/json"
+}
+
+resposta = requests.post(url, params=parametros, json=payload, headers=headers, verify=False)
 resposta_moggadora = json.dumps(resposta.json(), indent=4, ensure_ascii=False)
 
 print(resposta_moggadora)
