@@ -1,2 +1,4 @@
 requests
 curl_cffi
+bs4
+lxml
