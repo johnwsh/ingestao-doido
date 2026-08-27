@@ -1,8 +1,9 @@
+import time
 from curl_cffi import requests
+from bs4 import BeautifulSoup
+from urllib.parse import urljoin
 
 url_base = "https://sei.aneel.gov.br/sei/modulos/pesquisa/"
-url_pesquisa = "md_pesq_controlador_ajax_externo.php?acao_ajax_externo=protocolo_pesquisar&id_orgao_acesso_externo=0&isPaginacao=false&inicio=0&rowsSolr=50"
-url_final = url_base + url_pesquisa
 
 payload = {
     'txtDataInicio': '03/08/2026', 
@@ -21,28 +22,67 @@ headers = {
     'X-Requested-With': 'XMLHttpRequest'
 }
 
-result = requests.post(url_final, data=payload, headers=headers, impersonate="chrome120", verify=False)
+lista_processos = []
+inicio = 0
+linhas_por_pagina = 50
 
-#print(f"Status Code: {result.status_code}")
-#print(result.text)
-
-url_pesquisa = "md_pesq_documento_consulta_externa.php?yPDszXhdoNcWQHJaQlHJmJIqCNXRK_Sh2SMdn1U-tzMNfy7c8sRAVeWnpgI0O65tpoltpZDjHc52aYMTLVDoKULwEhlBtoDylkHIeCqgQ1QD0oAam8wIejLZHT4uYHBT"
-url_final = url_base + url_pesquisa
-
-result = requests.get(url_final, headers=headers, impersonate="chrome120", verify=False)
-
-print(f"Status Code: {result.status_code}")
-if result.status_code == 200:
+# Inicia o loop infinito da paginação
+while True:
+    print(f"Buscando processos a partir do índice {inicio}...")
     
-    if b"%PDF" in result.content[:10]:
+    # Atualiza a URL com o valor de 'inicio' atual e seta isPaginacao=true
+    url_pesquisa = f"md_pesq_controlador_ajax_externo.php?acao_ajax_externo=protocolo_pesquisar&id_orgao_acesso_externo=0&isPaginacao=true&inicio={inicio}&rowsSolr={linhas_por_pagina}"
+    url_final = url_base + url_pesquisa
+    
+    result = requests.post(url_final, data=payload, headers=headers, impersonate="chrome120", verify=False)
+    
+    soup = BeautifulSoup(result.text, 'html.parser')
+    
+    celulas_processos = soup.find_all('td', class_='pesquisaTituloEsquerda')
+    
+    # Condição de parada: se não encontrou mais nenhuma célula, a paginação acabou
+    if not celulas_processos:
+        print("Fim da paginação. Nenhum processo a mais encontrado nesta página.")
+        break
+
+    # Extrai os dados da página atual
+    for td in celulas_processos:
+        nup = td.get('data-prot')
         
-        with open("documento_aneel.pdf", "wb") as arquivo_pdf:
-            arquivo_pdf.write(result.content)
-            
-        print("PDF salvo com sucesso!")
+        link_tag = td.find('a') 
+        href_relativo = link_tag.get('href') if link_tag else None
+        url_completa = urljoin(url_base, href_relativo) if href_relativo else None
         
-    else:
-        print("O download funcionou, mas o arquivo não parece ser um PDF. Pode ser uma página de erro.")
-        print(result.text[:200])
-else:
-    print(f"Falha ao baixar o documento. Status Code: {result.status_code}")
+        descricao = td.text.strip().replace('\n', '').replace('\r', '')
+        descricao = ' '.join(descricao.split()) 
+
+        lista_processos.append({
+            'nup': nup,
+            'descricao': descricao,
+            'url_acesso': url_completa
+        })
+    
+    # Incrementa o índice para buscar a próxima página no próximo ciclo
+    inicio += linhas_por_pagina
+    
+    # Pausa de 1 segundo para não sobrecarregar o servidor
+    time.sleep(1)
+
+# ==========================================
+# Testando a visualização dos resultados finais
+# ==========================================
+print("\n" + "="*50)
+print(f"EXTRAÇÃO CONCLUÍDA! Total de processos coletados: {len(lista_processos)}")
+print("="*50 + "\n")
+
+# Mostrando apenas os primeiros e os últimos para confirmar
+if lista_processos:
+    print("--- PRIMEIRO PROCESSO DA LISTA ---")
+    print(f"NUP: {lista_processos[0]['nup']}")
+    print(f"Assunto: {lista_processos[0]['descricao']}")
+    print(f"URL: {lista_processos[0]['url_acesso']}\n")
+    
+    print("--- ÚLTIMO PROCESSO DA LISTA ---")
+    print(f"NUP: {lista_processos[-1]['nup']}")
+    print(f"Assunto: {lista_processos[-1]['descricao']}")
+    print(f"URL: {lista_processos[-1]['url_acesso']}")
