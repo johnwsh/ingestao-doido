@@ -23,5 +23,26 @@ headers = {
 
 result = requests.post(url_final, data=payload, headers=headers, impersonate="chrome120", verify=False)
 
+#print(f"Status Code: {result.status_code}")
+#print(result.text)
+
+url_pesquisa = "md_pesq_documento_consulta_externa.php?yPDszXhdoNcWQHJaQlHJmJIqCNXRK_Sh2SMdn1U-tzMNfy7c8sRAVeWnpgI0O65tpoltpZDjHc52aYMTLVDoKULwEhlBtoDylkHIeCqgQ1QD0oAam8wIejLZHT4uYHBT"
+url_final = url_base + url_pesquisa
+
+result = requests.get(url_final, headers=headers, impersonate="chrome120", verify=False)
+
 print(f"Status Code: {result.status_code}")
-print(result.text)
+if result.status_code == 200:
+    
+    if b"%PDF" in result.content[:10]:
+        
+        with open("documento_aneel.pdf", "wb") as arquivo_pdf:
+            arquivo_pdf.write(result.content)
+            
+        print("PDF salvo com sucesso!")
+        
+    else:
+        print("O download funcionou, mas o arquivo não parece ser um PDF. Pode ser uma página de erro.")
+        print(result.text[:200])
+else:
+    print(f"Falha ao baixar o documento. Status Code: {result.status_code}")
