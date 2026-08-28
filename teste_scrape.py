@@ -3,9 +3,61 @@ from datetime import datetime
 from curl_cffi import requests
 from bs4 import BeautifulSoup
 from urllib.parse import urljoin
+import json
 import re
 import os
 import mimetypes
+
+def extrair_metadados_processo(soup) -> dict:
+    metadados = {
+        "processo": {},
+        "documentos": [],
+        "historico": []
+    }
+    
+    # --- 1. Cabeçalho do Processo ---
+    tabela_cabecalho = soup.find('table', id='tblCabecalho')
+    if tabela_cabecalho:
+        linhas = tabela_cabecalho.find_all('tr', class_='infraTrClara')
+        for linha in linhas:
+            colunas = linha.find_all('td')
+            if len(colunas) == 2:
+                chave = colunas[0].text.strip().replace(':', '')
+                # Usamos separator para trocar os <br> por | na lista de interessados
+                valor = colunas[1].get_text(separator=" | ", strip=True) 
+                metadados["processo"][chave] = valor
+
+    # --- 2. Lista de Documentos ---
+    tabela_docs = soup.find('table', id='tblDocumentos')
+    if tabela_docs:
+        # Pula a primeira linha (cabeçalhos th) e pega as tr com a classe clara
+        linhas_docs = tabela_docs.find_all('tr', class_='infraTrClara')
+        for linha in linhas_docs:
+            colunas = linha.find_all('td')
+            if len(colunas) >= 6:
+                metadados["documentos"].append({
+                    "id_documento": colunas[1].text.strip(),
+                    "tipo": colunas[2].text.strip(),
+                    "data": colunas[3].text.strip(),
+                    "data_inclusao": colunas[4].text.strip(),
+                    "unidade_sigla": colunas[5].text.strip()
+                })
+
+    # --- 3. Histórico de Andamentos ---
+    tabela_historico = soup.find('table', id='tblHistorico')
+    if tabela_historico:
+        # Encontra todas as trs que representam andamentos (Aberto ou Concluido)
+        linhas_hist = tabela_historico.find_all('tr', class_=['andamentoAberto', 'andamentoConcluido'])
+        for linha in linhas_hist:
+            colunas = linha.find_all('td')
+            if len(colunas) >= 3:
+                metadados["historico"].append({
+                    "data_hora": colunas[0].text.strip(),
+                    "unidade": colunas[1].text.strip(),
+                    "descricao": colunas[2].get_text(separator=" ", strip=True)
+                })
+                
+    return metadados
 
 def listar_processos(data_inicio: str, data_fim: str) -> list:
     """
@@ -109,6 +161,15 @@ def baixar_documentos_dos_processos(lista_processos: list):
             continue
             
         soup = BeautifulSoup(res_processo.text, 'html.parser')
+
+        dados_json = extrair_metadados_processo(soup)
+        
+        caminho_json = os.path.join(caminho_pasta, 'metadados.json')
+        with open(caminho_json, 'w', encoding='utf-8') as f:
+            # ensure_ascii=False garante que os acentos (ã, é) não virem códigos unicode feios
+            json.dump(dados_json, f, ensure_ascii=False, indent=4)
+            
+        print("  -> Metadados salvos (metadados.json)")
         links_docs = soup.find_all('a', class_='ancoraPadraoAzul', onclick=True)
         
         for link in links_docs:
@@ -125,38 +186,33 @@ def baixar_documentos_dos_processos(lista_processos: list):
                 res_doc = requests.get(url_completa_doc, headers=headers, impersonate="chrome120", verify=False)
                 
                 if res_doc.status_code == 200:
-                    
-                    # 1. Verifica se o servidor retornou um HTML (página de erro, sessão expirada, etc)
+                    extensao = ".bin" # Padrão caso não consigamos identificar
                     content_type = res_doc.headers.get('Content-Type', '').lower()
+                    
+                    # 1. Se for HTML, apenas define a extensão e segue em frente
                     if 'text/html' in content_type:
-                        print(f"  [!] Alerta: O link {id_doc} retornou uma página de erro (HTML).")
-                        continue
-                        
-                    # 2. Tenta descobrir a extensão pelo cabeçalho Content-Disposition
-                    extensao = ".bin" # Extensão genérica caso tudo falhe
-                    content_disposition = res_doc.headers.get('Content-Disposition', '')
-                    
-                    # Procura por filename="arquivo.ext" ou filename=arquivo.ext
-                    match_filename = re.search(r'filename="?([^";]+)"?', content_disposition)
-                    
-                    if match_filename:
-                        nome_original = match_filename.group(1)
-                        # Extrai só o .zip, .pdf, .docx, etc.
-                        _, ext = os.path.splitext(nome_original)
-                        if ext:
-                            extensao = ext.lower()
-                    else:
-                        # 3. Fallback: Se não tem Content-Disposition, adivinha pelo Content-Type
-                        # Ex: "application/zip" vira ".zip"
-                        tipo_limpo = content_type.split(';')[0].strip()
-                        guess = mimetypes.guess_extension(tipo_limpo)
-                        if guess:
-                            extensao = guess
+                        extensao = ".html"
                             
+                    # 2. Se for arquivo binário, tenta descobrir a extensão
+                    else:
+                        content_disposition = res_doc.headers.get('Content-Disposition', '')
+                        match_filename = re.search(r'filename="?([^";]+)"?', content_disposition)
+                        
+                        if match_filename:
+                            nome_original = match_filename.group(1)
+                            _, ext = os.path.splitext(nome_original)
+                            if ext:
+                                extensao = ext.lower()
+                        else:
+                            tipo_limpo = content_type.split(';')[0].strip()
+                            guess = mimetypes.guess_extension(tipo_limpo)
+                            if guess:
+                                extensao = guess
+                                
+                    # 3. Salva o arquivo bruto
                     nome_arquivo = f"{id_doc}{extensao}"
                     caminho_arquivo = os.path.join(caminho_pasta, nome_arquivo)
                     
-                    # Salva o arquivo
                     if not os.path.exists(caminho_arquivo):
                         with open(caminho_arquivo, 'wb') as arquivo:
                             arquivo.write(res_doc.content)
