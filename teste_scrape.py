@@ -3,6 +3,9 @@ from datetime import datetime
 from curl_cffi import requests
 from bs4 import BeautifulSoup
 from urllib.parse import urljoin
+import re
+import os
+import mimetypes
 
 def listar_processos(data_inicio: str, data_fim: str) -> list:
     """
@@ -79,10 +82,96 @@ def listar_processos(data_inicio: str, data_fim: str) -> list:
 
     return lista_processos
 
+def baixar_documentos_dos_processos(lista_processos: list):
+    url_base = "https://sei.aneel.gov.br/sei/modulos/pesquisa/"
+    
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        'Origin': 'https://sei.aneel.gov.br'
+    }
+
+    pasta_raiz = "processos_aneel"
+    os.makedirs(pasta_raiz, exist_ok=True)
+
+    for processo in lista_processos:
+        nup = processo['nup']
+        url_acesso = processo['url_acesso']
+        
+        pasta_processo = re.sub(r'[^\w\-]', '_', nup)
+        caminho_pasta = os.path.join(pasta_raiz, pasta_processo)
+        os.makedirs(caminho_pasta, exist_ok=True)
+        
+        print(f"\n[+] Acessando processo: {nup}")
+        
+        res_processo = requests.get(url_acesso, headers=headers, impersonate="chrome120", verify=False)
+        if res_processo.status_code != 200:
+            continue
+            
+        soup = BeautifulSoup(res_processo.text, 'html.parser')
+        links_docs = soup.find_all('a', class_='ancoraPadraoAzul', onclick=True)
+        
+        for link in links_docs:
+            onclick_text = link.get('onclick')
+            match = re.search(r"window\.open\('([^']+)'", onclick_text)
+            
+            if match:
+                url_relativa_doc = match.group(1)
+                url_completa_doc = urljoin(url_base, url_relativa_doc)
+                id_doc = link.text.strip()
+                
+                print(f"  -> Baixando documento {id_doc}...")
+                
+                res_doc = requests.get(url_completa_doc, headers=headers, impersonate="chrome120", verify=False)
+                
+                if res_doc.status_code == 200:
+                    
+                    # 1. Verifica se o servidor retornou um HTML (página de erro, sessão expirada, etc)
+                    content_type = res_doc.headers.get('Content-Type', '').lower()
+                    if 'text/html' in content_type:
+                        print(f"  [!] Alerta: O link {id_doc} retornou uma página de erro (HTML).")
+                        continue
+                        
+                    # 2. Tenta descobrir a extensão pelo cabeçalho Content-Disposition
+                    extensao = ".bin" # Extensão genérica caso tudo falhe
+                    content_disposition = res_doc.headers.get('Content-Disposition', '')
+                    
+                    # Procura por filename="arquivo.ext" ou filename=arquivo.ext
+                    match_filename = re.search(r'filename="?([^";]+)"?', content_disposition)
+                    
+                    if match_filename:
+                        nome_original = match_filename.group(1)
+                        # Extrai só o .zip, .pdf, .docx, etc.
+                        _, ext = os.path.splitext(nome_original)
+                        if ext:
+                            extensao = ext.lower()
+                    else:
+                        # 3. Fallback: Se não tem Content-Disposition, adivinha pelo Content-Type
+                        # Ex: "application/zip" vira ".zip"
+                        tipo_limpo = content_type.split(';')[0].strip()
+                        guess = mimetypes.guess_extension(tipo_limpo)
+                        if guess:
+                            extensao = guess
+                            
+                    nome_arquivo = f"{id_doc}{extensao}"
+                    caminho_arquivo = os.path.join(caminho_pasta, nome_arquivo)
+                    
+                    # Salva o arquivo
+                    if not os.path.exists(caminho_arquivo):
+                        with open(caminho_arquivo, 'wb') as arquivo:
+                            arquivo.write(res_doc.content)
+                        print(f"  -> Salvo: {nome_arquivo}")
+                    else:
+                        print(f"  -> {nome_arquivo} já existe. Pulando...")
+                        
+                time.sleep(0.5)
+                
+        time.sleep(1)
+
 if __name__ == "__main__":
     
     # Chama a função passando as datas
-    processos_hoje = listar_processos("04/08/2026", "04/08/2026")
+    processos_hoje = listar_processos("27/08/2026", "27/08/2026")
     
     print("\n" + "="*50)
     print(f"EXTRAÇÃO CONCLUÍDA! Total de processos coletados: {len(processos_hoje)}")
@@ -94,3 +183,5 @@ if __name__ == "__main__":
         print(f"URL: {p['url_acesso']}")
         print(f"Assunto: {p['descricao']}")
         print("-" * 50)
+    
+    baixar_documentos_dos_processos(processos_hoje)
