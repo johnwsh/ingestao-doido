@@ -226,7 +226,6 @@ def baixar_documentos_dos_processos(lista_processos: list):
 
 if __name__ == "__main__":
     
-    # Chama a função passando as datas
     processos_hoje = listar_processos("27/08/2026", "27/08/2026")
     
     print("\n" + "="*50)
