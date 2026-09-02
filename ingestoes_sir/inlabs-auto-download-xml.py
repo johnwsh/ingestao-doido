@@ -3,6 +3,7 @@ from dotenv import load_dotenv
 from datetime import date
 import requests
 
+# Roda python -W ignore inlabs-auto-download-xml.py na pasta do ingestoes_sir paara rodar
 # Carrega as variáveis do arquivo .env para o ambiente
 load_dotenv()
 
