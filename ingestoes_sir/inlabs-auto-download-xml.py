@@ -43,7 +43,7 @@ def download():
         print("Aguarde Download...")
         url_arquivo = url_download + data_completa + "&dl=" + data_completa + "-" + dou_secao + ".zip"
         cabecalho_arquivo = {'Cookie': 'inlabs_session_cookie=' + cookie, 'origem': '736372697074'}
-        response_arquivo = s.request("GET", url_arquivo, headers = cabecalho_arquivo)
+        response_arquivo = s.request("GET", url_arquivo, headers = cabecalho_arquivo, verify="certificado.pem")
         if response_arquivo.status_code == 200:
             with open(data_completa + "-" + dou_secao + ".zip", "wb") as f:
                 f.write(response_arquivo.content)
