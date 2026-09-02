@@ -34,6 +34,9 @@ def download():
         print("Falha ao obter cookie. Verifique suas credenciais");
         exit(37)
     
+    # Caminho absoluto para o certificado.pem
+    cert_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'certificado.pem')
+
     # Montagem da URL:
     ano = date.today().strftime("%Y")
     mes = date.today().strftime("%m")
@@ -44,7 +47,7 @@ def download():
         print("Aguarde Download...")
         url_arquivo = url_download + data_completa + "&dl=" + data_completa + "-" + dou_secao + ".zip"
         cabecalho_arquivo = {'Cookie': 'inlabs_session_cookie=' + cookie, 'origem': '736372697074'}
-        response_arquivo = s.request("GET", url_arquivo, headers = cabecalho_arquivo, verify="certificado.pem")
+        response_arquivo = s.request("GET", url_arquivo, headers = cabecalho_arquivo, verify=cert_path)
         if response_arquivo.status_code == 200:
             with open(data_completa + "-" + dou_secao + ".zip", "wb") as f:
                 f.write(response_arquivo.content)
@@ -58,8 +61,9 @@ def download():
     exit(0)
 
 def login():
+    cert_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'certificado.pem')
     try:
-        response = s.request("POST", url_login, data=payload, headers=headers)
+        response = s.request("POST", url_login, data=payload, headers=headers, verify=cert_path)
         download()
     except requests.exceptions.ConnectionError:
         login()
