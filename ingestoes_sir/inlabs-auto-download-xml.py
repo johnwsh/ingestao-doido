@@ -69,3 +69,4 @@ def login():
         login()
 login()
 
+# Para rodar: # python -W ignore inlabs-auto-download-xml.py 

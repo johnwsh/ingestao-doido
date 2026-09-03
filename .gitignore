@@ -2,3 +2,4 @@
 .env
 certificado.pem
 processos_aneel/
+ingestoes_sir/*.zip
