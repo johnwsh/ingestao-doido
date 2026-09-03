@@ -1,6 +1,6 @@
 import os
 from dotenv import load_dotenv
-from datetime import date
+from datetime import date, datetime, timedelta
 import requests
 
 # Roda python -W ignore inlabs-auto-download-xml.py na pasta do ingestoes_sir paara rodar
@@ -14,6 +14,9 @@ senha = os.getenv("INLABS_SENHA")
 # Se alguma variável faltar, o script alerta antes de tentar logar
 if not login or not senha:
     raise ValueError("Credenciais não encontradas. Verifique o arquivo .env")
+
+# Data de início para o download do histórico (Ano-Mês-Dia)
+DATA_INICIAL = "2026-08-01"
 
 tipo_dou="DO1 DO2 DO3 DO1E DO2E DO3E"
 
@@ -38,24 +41,31 @@ def download():
     cert_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'certificado.pem')
 
     # Montagem da URL:
-    ano = date.today().strftime("%Y")
-    mes = date.today().strftime("%m")
-    dia = date.today().strftime("%d")
-    data_completa = ano + "-" + mes + "-" + dia
-    
-    for dou_secao in tipo_dou.split(' '):
-        print("Aguarde Download...")
-        url_arquivo = url_download + data_completa + "&dl=" + data_completa + "-" + dou_secao + ".zip"
-        cabecalho_arquivo = {'Cookie': 'inlabs_session_cookie=' + cookie, 'origem': '736372697074'}
-        response_arquivo = s.request("GET", url_arquivo, headers = cabecalho_arquivo, verify=cert_path)
-        if response_arquivo.status_code == 200:
-            with open(data_completa + "-" + dou_secao + ".zip", "wb") as f:
-                f.write(response_arquivo.content)
-                print("Arquivo %s salvo." % (data_completa + "-" + dou_secao + ".zip"))
-            del response_arquivo
-            del f
-        elif response_arquivo.status_code == 404:
-            print("Arquivo não encontrado: %s" % (data_completa + "-" + dou_secao + ".zip"))
+    data_inicio_obj = datetime.strptime(DATA_INICIAL, "%Y-%m-%d").date()
+    data_hoje_obj = date.today()
+    delta = data_hoje_obj - data_inicio_obj
+
+    for i in range(delta.days + 1):
+        data_atual_obj = data_inicio_obj + timedelta(days=i)
+        
+        ano = data_atual_obj.strftime("%Y")
+        mes = data_atual_obj.strftime("%m")
+        dia = data_atual_obj.strftime("%d")
+        data_completa = ano + "-" + mes + "-" + dia
+        
+        for dou_secao in tipo_dou.split(' '):
+            print("Aguarde Download...")
+            url_arquivo = url_download + data_completa + "&dl=" + data_completa + "-" + dou_secao + ".zip"
+            cabecalho_arquivo = {'Cookie': 'inlabs_session_cookie=' + cookie, 'origem': '736372697074'}
+            response_arquivo = s.request("GET", url_arquivo, headers = cabecalho_arquivo, verify=cert_path)
+            if response_arquivo.status_code == 200:
+                with open(data_completa + "-" + dou_secao + ".zip", "wb") as f:
+                    f.write(response_arquivo.content)
+                    print("Arquivo %s salvo." % (data_completa + "-" + dou_secao + ".zip"))
+                del response_arquivo
+                del f
+            elif response_arquivo.status_code == 404:
+                print("Arquivo não encontrado: %s" % (data_completa + "-" + dou_secao + ".zip"))
     
     print("Aplicação encerrada")
     exit(0)
@@ -65,8 +75,9 @@ def login():
     try:
         response = s.request("POST", url_login, data=payload, headers=headers, verify=cert_path)
         download()
-    except requests.exceptions.ConnectionError:
-        login()
+    except requests.exceptions.ConnectionError as e:
+        print(f"Erro de conexão com o servidor: {e}")
+        exit(1)
 login()
 
-# Para rodar: # python -W ignore inlabs-auto-download-xml.py 
+# Para rodar: # python -W ignore inlabs-auto-download-xml.py
